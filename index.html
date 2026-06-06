@@ -9,6 +9,7 @@ body {
   text-align: center;
   font-family: sans-serif;
   background: #f0f8ff;
+  padding-bottom: 50px;
 }
 
 input {
@@ -40,6 +41,41 @@ button {
   background: #4facfe;
   color: white;
 }
+
+/* 👥 追加：タイムラインのスタイル */
+#timeline {
+  max-width: 400px;
+  margin: 30px auto;
+  text-align: left;
+  background: white;
+  padding: 15px;
+  border-radius: 10px;
+  box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+}
+
+.post-card {
+  border-bottom: 1px solid #eee;
+  padding: 10px 0;
+}
+
+.post-card:last-child {
+  border-bottom: none;
+}
+
+.post-info {
+  font-size: 11px;
+  color: #777;
+}
+
+.like-btn {
+  background: #ff7675;
+  color: white;
+  border: none;
+  border-radius: 5px;
+  cursor: pointer;
+  padding: 4px 8px;
+  font-size: 12px;
+}
 </style>
 </head>
 
@@ -47,7 +83,6 @@ button {
 
 <h1>💧 集中ボトル</h1>
 
-<!-- SVG水滴 -->
 <svg width="160" height="220" viewBox="0 0 200 260">
 
   <path d="M100 10 C140 70, 180 110, 180 160 
@@ -71,7 +106,6 @@ button {
           height="260"
           fill="url(#grad)"/>
 
-    <!-- 波 -->
     <ellipse cx="100" cy="0" rx="120" ry="20"
              fill="rgba(255,255,255,0.4)">
       <animateTransform attributeName="transform"
@@ -109,7 +143,47 @@ button {
 <h3>📅 勉強カレンダー</h3>
 <div id="calendar"></div>
 
-<script>
+<hr style="margin: 40px 0; border: 0; border-top: 1px dashed #ccc;">
+
+<h2>👥 みんなの勉強ボトル</h2>
+<div id="timeline">タイムラインを読み込み中...</div>
+
+
+<script type="module">
+// Firebaseに必要な部品をネットから読み込む
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.0.0/firebase-app.js";
+import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/10.0.0/firebase-auth.js";
+import { getFirestore, doc, collection, addDoc, getDocs, updateDoc, increment, query, orderBy, limit } from "https://www.gstatic.com/firebasejs/10.0.0/firebase-firestore.js";
+
+// 🟢 あなたのFirebaseプロジェクトの設定値（画像から自動入力済みです）
+const firebaseConfig = {
+    apiKey: "AIzaSyBWj4OdbH9VPj06Q3OzHEqdLwCUALDH2c",
+    authDomain: "study-bottle.firebaseapp.com",
+    projectId: "study-bottle",
+    storageBucket: "study-bottle.appspot.com",
+    messagingSenderId: "58806870643",
+    appId: "1:58806870643:web:53b3309cca97d1cb548006",
+    measurementId: "G-5ER84XMC9K"
+};
+
+// Firebaseの初期化
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+
+// 匿名ログインを実行
+signInAnonymously(auth).catch((error) => {
+    console.error("Firebaseログインエラー:", error);
+});
+
+// ログイン状態を監視して、準備ができたらタイムラインを表示
+onAuthStateChanged(auth, (user) => {
+    if (user) {
+        loadTimeline();
+    }
+});
+
+// 既存の変数
 let progress = 0;
 let tasks = [];
 let studyDays = JSON.parse(localStorage.getItem("studyDays")) || {};
@@ -168,7 +242,7 @@ window.onload = function() {
 };
 
 // タスク追加
-function addTask() {
+window.addTask = function() {
   let name = document.getElementById("taskName").value;
   let value = parseFloat(document.getElementById("taskValue").value);
 
@@ -182,8 +256,8 @@ function addTask() {
   document.getElementById("taskValue").value = "";
 }
 
-// 実行
-function doTask(value) {
+// 実行（🟢 ここでFirebaseへ自動投稿する処理を追加しました）
+window.doTask = async function(value, taskName) {
   if (progress < 100) {
     progress += value;
     if (progress > 100) progress = 100;
@@ -193,6 +267,25 @@ function doTask(value) {
     updateUI();
     generateCalendar();
     calculateStreak();
+
+    // 👥 FirebaseのFirestoreに進捗データを保存して共有する
+    const user = auth.currentUser;
+    if (user) {
+        try {
+            await addDoc(collection(db, "posts"), {
+                userId: user.uid,
+                taskName: taskName,
+                value: value,
+                currentPercent: Math.floor(progress),
+                createdAt: new Date().toLocaleString('ja-JP'), // 投稿時間
+                likes: 0 // 初期いいね数は0
+            });
+            // 投稿に成功したらタイムラインを最新にする
+            loadTimeline();
+        } catch (e) {
+            console.error("Firebaseへの投稿に失敗しました: ", e);
+        }
+    }
   }
 
   if (progress === 100) {
@@ -201,14 +294,14 @@ function doTask(value) {
 }
 
 // 削除
-function deleteTask(index) {
+window.deleteTask = function(index) {
   tasks.splice(index, 1);
   saveData();
   updateUI();
 }
 
 // リセット
-function reset() {
+window.reset = function() {
   progress = 0;
   saveData();
   updateUI();
@@ -228,9 +321,10 @@ function updateUI() {
 
   let list = "";
   tasks.forEach((task, index) => {
+    // 🟢 引数にタスクの名前を渡せるように微調整しました
     list += `<div>
       ${task.name}（+${task.value}%）
-      <button onclick="doTask(${task.value})">やった</button>
+      <button onclick="doTask(${task.value}, '${task.name}')">やった</button>
       <button onclick="deleteTask(${index})">削除</button>
     </div>`;
   });
@@ -264,6 +358,68 @@ function generateCalendar() {
       </div>
     `;
   }
+}
+
+// 👥 追加：Firebaseからタイムラインデータを読み込む関数
+async function loadTimeline() {
+    const timelineDiv = document.getElementById('timeline');
+    try {
+        // 全ユーザーの投稿を全て取得する
+        const querySnapshot = await getDocs(collection(db, "posts"));
+        
+        if (querySnapshot.empty) {
+            timelineDiv.innerHTML = "<p style='color:#777; text-align:center;'>まだ投稿がありません。最初の進捗を記録しよう！</p>";
+            return;
+        }
+
+        let timelineHtml = "";
+        
+        // データを配列に入れて、新しい投稿が上に来るように並び替える
+        let postsArray = [];
+        querySnapshot.forEach((docSnap) => {
+            postsArray.push({ id: docSnap.id, ...docSnap.data() });
+        });
+        // 簡易的な降順ソート
+        postsArray.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+
+        postsArray.forEach((post) => {
+            // 匿名のままだとIDが長いので、後ろの5文字だけ切り取ってユーザー名っぽく見せる演出
+            const shortId = post.userId ? post.userId.slice(-5) : "???";
+            
+            timelineHtml += `
+                <div class="post-card">
+                    <div class="post-info">👤 ユーザー_${shortId} • ⏱️ ${post.createdAt}</div>
+                    <div style="margin: 5px 0; font-weight: bold;">
+                        「${post.taskName}」を達成！（+${post.value}%）
+                    </div>
+                    <div style="font-size: 13px; color: #4facfe; margin-bottom: 5px;">
+                        現在のボトル：${post.currentPercent}%
+                    </div>
+                    <button class="like-btn" onclick="likePost('${post.id}')">❤️ いいね (${post.likes || 0})</button>
+                </div>
+            `;
+        });
+
+        timelineDiv.innerHTML = timelineHtml;
+    } catch (e) {
+        console.error("タイムライン読み込みエラー: ", e);
+        timelineDiv.innerHTML = "データの読み込みに失敗しました。";
+    }
+}
+
+// 👥 追加：いいねボタンを押したときの処理
+window.likePost = async function(postId) {
+    try {
+        const postRef = doc(db, "posts", postId);
+        // Firestore上の「likes」フィールドの数値を自動で+1する
+        await updateDoc(postRef, {
+            likes: increment(1)
+        });
+        // 画面を更新
+        loadTimeline();
+    } catch (e) {
+        console.error("いいね処理に失敗しました: ", e);
+    }
 }
 </script>
 
