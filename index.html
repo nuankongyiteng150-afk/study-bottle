@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>集中ボトル</title>
+
+<style>
+body {
+  text-align: center;
+  font-family: sans-serif;
+  background: #f0f8ff;
+}
+
+input {
+  padding: 5px;
+  margin: 5px;
+}
+
+button {
+  padding: 6px 12px;
+  margin: 3px;
+}
+
+/* カレンダー */
+#calendar {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 5px;
+  width: 300px;
+  margin: 20px auto;
+}
+
+.day {
+  padding: 10px;
+  border: 1px solid #ccc;
+  font-size: 12px;
+}
+
+.done {
+  background: #4facfe;
+  color: white;
+}
+</style>
+</head>
+
+<body>
+
+<h1>💧 集中ボトル</h1>
+
+<!-- SVG水滴 -->
+<svg width="160" height="220" viewBox="0 0 200 260">
+
+  <path d="M100 10 C140 70, 180 110, 180 160 
+           C180 210, 140 250, 100 250 
+           C60 250, 20 210, 20 160 
+           C20 110, 60 70, 100 10 Z"
+        fill="none" stroke="#333" stroke-width="4"/>
+
+  <clipPath id="clipDrop">
+    <path d="M100 10 C140 70, 180 110, 180 160 
+             C180 210, 140 250, 100 250 
+             C60 250, 20 210, 20 160 
+             C20 110, 60 70, 100 10 Z"/>
+  </clipPath>
+
+  <g clip-path="url(#clipDrop)">
+    <rect id="water"
+          x="0"
+          y="260"
+          width="200"
+          height="260"
+          fill="url(#grad)"/>
+
+    <!-- 波 -->
+    <ellipse cx="100" cy="0" rx="120" ry="20"
+             fill="rgba(255,255,255,0.4)">
+      <animateTransform attributeName="transform"
+        type="translate"
+        from="0 0"
+        to="-100 0"
+        dur="3s"
+        repeatCount="indefinite"/>
+    </ellipse>
+  </g>
+
+  <defs>
+    <linearGradient id="grad" x1="0" x2="0" y1="0" y2="1">
+      <stop offset="0%" stop-color="#4facfe"/>
+      <stop offset="100%" stop-color="#00f2fe"/>
+    </linearGradient>
+  </defs>
+
+</svg>
+
+<p id="percent">0%</p>
+
+<h3>🔥 連続日数: <span id="streak">0</span>日</h3>
+
+<h3>タスク追加</h3>
+<input type="text" id="taskName" placeholder="内容">
+<input type="number" id="taskValue" placeholder="%">
+<button onclick="addTask()">追加</button>
+
+<h3>タスク一覧</h3>
+<div id="taskList"></div>
+
+<button onclick="reset()">リセット</button>
+
+<h3>📅 勉強カレンダー</h3>
+<div id="calendar"></div>
+
+<script>
+let progress = 0;
+let tasks = [];
+let studyDays = JSON.parse(localStorage.getItem("studyDays")) || {};
+
+// 今日
+function getToday() {
+  return new Date().toISOString().slice(0,10);
+}
+
+// 記録
+function markToday() {
+  let today = getToday();
+  studyDays[today] = true;
+  localStorage.setItem("studyDays", JSON.stringify(studyDays));
+}
+
+// 🔥 ストリーク計算
+function calculateStreak() {
+  let streak = 0;
+  let date = new Date();
+
+  while (true) {
+    let dateStr = date.toISOString().slice(0,10);
+
+    if (studyDays[dateStr]) {
+      streak++;
+      date.setDate(date.getDate() - 1);
+    } else {
+      break;
+    }
+  }
+
+  document.getElementById("streak").innerText = streak;
+}
+
+// 起動時
+window.onload = function() {
+  let savedProgress = localStorage.getItem("progress");
+  let savedTasks = localStorage.getItem("tasks");
+  let savedDate = localStorage.getItem("date");
+
+  let today = new Date().toDateString();
+
+  if (savedDate !== today) {
+    progress = 0;
+    localStorage.setItem("date", today);
+  } else {
+    if (savedProgress) progress = parseFloat(savedProgress);
+  }
+
+  if (savedTasks) tasks = JSON.parse(savedTasks);
+
+  updateUI();
+  generateCalendar();
+  calculateStreak();
+};
+
+// タスク追加
+function addTask() {
+  let name = document.getElementById("taskName").value;
+  let value = parseFloat(document.getElementById("taskValue").value);
+
+  if (!name || !value) return;
+
+  tasks.push({name, value});
+  saveData();
+  updateUI();
+
+  document.getElementById("taskName").value = "";
+  document.getElementById("taskValue").value = "";
+}
+
+// 実行
+function doTask(value) {
+  if (progress < 100) {
+    progress += value;
+    if (progress > 100) progress = 100;
+
+    markToday();
+    saveData();
+    updateUI();
+    generateCalendar();
+    calculateStreak();
+  }
+
+  if (progress === 100) {
+    alert("🎉 100%達成！スマホ解禁！");
+  }
+}
+
+// 削除
+function deleteTask(index) {
+  tasks.splice(index, 1);
+  saveData();
+  updateUI();
+}
+
+// リセット
+function reset() {
+  progress = 0;
+  saveData();
+  updateUI();
+}
+
+// 保存
+function saveData() {
+  localStorage.setItem("progress", progress);
+  localStorage.setItem("tasks", JSON.stringify(tasks));
+}
+
+// 表示更新
+function updateUI() {
+  let y = 260 - (260 * progress / 100);
+  document.getElementById("water").setAttribute("y", y);
+  document.getElementById("percent").innerText = Math.floor(progress) + "%";
+
+  let list = "";
+  tasks.forEach((task, index) => {
+    list += `<div>
+      ${task.name}（+${task.value}%）
+      <button onclick="doTask(${task.value})">やった</button>
+      <button onclick="deleteTask(${index})">削除</button>
+    </div>`;
+  });
+
+  document.getElementById("taskList").innerHTML = list;
+}
+
+// カレンダー生成
+function generateCalendar() {
+  let calendar = document.getElementById("calendar");
+  calendar.innerHTML = "";
+
+  let today = new Date();
+  let year = today.getFullYear();
+  let month = today.getMonth();
+
+  let firstDay = new Date(year, month, 1).getDay();
+  let daysInMonth = new Date(year, month + 1, 0).getDate();
+
+  for (let i = 0; i < firstDay; i++) {
+    calendar.innerHTML += `<div></div>`;
+  }
+
+  for (let d = 1; d <= daysInMonth; d++) {
+    let dateStr = `${year}-${String(month+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    let isDone = studyDays[dateStr];
+
+    calendar.innerHTML += `
+      <div class="day ${isDone ? 'done' : ''}">
+        ${d}
+      </div>
+    `;
+  }
+}
+</script>
+
+</body>
+</html>
