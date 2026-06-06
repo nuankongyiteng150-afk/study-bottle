@@ -1,1 +1,50 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <title>集中ボトル</title>
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+        import { getFirestore, collection, onSnapshot, addDoc, doc, updateDoc, increment } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+        import { getAuth, signInAnonymously } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyBRwJ40dbH9VPj06Q3OzHEQdLwCUALDH2c",
+            authDomain: "study-bottle.firebaseapp.com",
+            projectId: "study-bottle",
+            storageBucket: "study-bottle.firebasestorage.app",
+            messagingSenderId: "58806870643",
+            appId: "1:58806870643:web:53b3309cca97d1cb548006"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        const auth = getAuth(app);
+
+        // ログイン後にデータを読み込む
+        signInAnonymously(auth).then(() => {
+            const container = document.getElementById('timeline-posts');
+            // シンプルな読み込み命令
+            onSnapshot(collection(db, "posts"), (snapshot) => {
+                container.innerHTML = '';
+                snapshot.forEach((doc) => {
+                    const data = doc.data();
+                    const div = document.createElement('div');
+                    div.style = "border-bottom:1px solid #ccc; padding:10px;";
+                    div.innerHTML = `🔥 <strong>${data.taskName || 'なし'}</strong> を <strong>${data.percent || 0}%</strong> 達成！`;
+                    container.appendChild(div);
+                });
+            });
+        });
+
+        // 投稿機能（ボタンと繋ぐ）
+        window.submitPost = async (taskName, percent) => {
+            await addDoc(collection(db, "posts"), { taskName, percent, createdAt: new Date() });
+        };
+    </script>
+</head>
+<body>
+    <h1>💧 集中ボトル</h1>
+    </body>
+</html>
 
