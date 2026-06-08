@@ -165,3 +165,138 @@ style="background:#ff7675;">
 </div>
 
 </div>
+<script type="module">
+
+import { initializeApp }
+from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+
+import {
+    getFirestore,
+    collection,
+    onSnapshot,
+    addDoc,
+    query,
+    where,
+    deleteDoc,
+    getDocs,
+    doc
+}
+from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+import {
+    getAuth,
+    signInAnonymously
+}
+from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
+
+const firebaseConfig = {
+    apiKey: "AIzaSyBRwJ40dbH9VPj06Q3OzHEQdLwCUALDH2c",
+    authDomain: "study-bottle.firebaseapp.com",
+    projectId: "study-bottle",
+    storageBucket: "study-bottle.firebasestorage.app",
+    messagingSenderId: "58806870643",
+    appId: "1:58806870643:web:53b3309cca97d1cb548006"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+const auth = getAuth(app);
+
+let totalWater =
+    Number(localStorage.getItem("bottleTotalWater"))
+    || 0;
+
+let tasks =
+    JSON.parse(localStorage.getItem("bottleTasks"))
+    || [];
+
+let completedDates =
+    JSON.parse(localStorage.getItem("bottleDates"))
+    || [];
+
+let bestStreak =
+    Number(localStorage.getItem("bestStreak"))
+    || 0;
+
+function calculateStreak(){
+
+    if(completedDates.length === 0){
+        return 0;
+    }
+
+    let dates = completedDates
+        .map(d => new Date(d))
+        .sort((a,b)=>b-a);
+
+    let streak = 1;
+
+    for(let i=0;i<dates.length-1;i++){
+
+        let diff =
+        (dates[i]-dates[i+1]) /
+        (1000*60*60*24);
+
+        if(Math.round(diff) === 1){
+            streak++;
+        }else{
+            break;
+        }
+    }
+
+    return streak;
+}
+
+function updateAdvice(){
+
+    let streak = calculateStreak();
+
+    if(streak > bestStreak){
+
+        bestStreak = streak;
+
+        localStorage.setItem(
+            "bestStreak",
+            bestStreak
+        );
+    }
+
+    document.getElementById(
+        "streakCount"
+    ).innerText = streak + "日";
+
+    document.getElementById(
+        "bestStreak"
+    ).innerText = bestStreak + "日";
+
+    let advice = "";
+
+    if(streak === 0){
+
+        advice =
+        "まずは1タスク終わらせよう！";
+
+    }else if(streak < 3){
+
+        advice =
+        `🔥 ${streak}日継続中！まずは3日連続を目指そう！`;
+
+    }else if(streak < 7){
+
+        advice =
+        `🔥 ${streak}日継続中！あと少しで1週間達成！`;
+
+    }else if(streak < 30){
+
+        advice =
+        `🔥 ${streak}日継続中！勉強習慣が身についてきたね！`;
+
+    }else{
+
+        advice =
+        `👑 ${streak}日継続中！完全に習慣化できてる！`;
+    }
+
+    document.getElementById(
+        "adviceText"
+    ).innerText = advice;
+}
