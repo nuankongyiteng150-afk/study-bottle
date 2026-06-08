@@ -300,3 +300,264 @@ function updateAdvice(){
         "adviceText"
     ).innerText = advice;
 }
+function updateUI(){
+
+    totalWater = Math.min(totalWater,100);
+
+    document.getElementById(
+        "waterPercent"
+    ).innerText = totalWater + "%";
+
+    document.getElementById(
+        "waterRect"
+    ).setAttribute(
+        "y",
+        250 - (totalWater * 2.4)
+    );
+
+    let taskList =
+        document.getElementById("taskList");
+
+    taskList.innerHTML = "";
+
+    tasks.forEach((t,i)=>{
+
+        taskList.innerHTML += `
+        <div style="margin:5px;">
+            ${t.name}
+            (+${t.percent}%)
+
+            <button
+            onclick="doTask(${i})">
+            やった
+            </button>
+
+            <button
+            onclick="deleteTask(${i})"
+            style="background:#ff7675;">
+            削除
+            </button>
+        </div>
+        `;
+    });
+
+    renderCalendar();
+    updateAdvice();
+}
+
+window.addTask = () => {
+
+    let u =
+    document.getElementById(
+        "userName"
+    ).value || "名無しさん";
+
+    let n =
+    document.getElementById(
+        "taskName"
+    ).value;
+
+    let p =
+    Number(
+        document.getElementById(
+            "taskPercent"
+        ).value
+    );
+
+    if(!n || !p) return;
+
+    tasks.push({
+        user:u,
+        name:n,
+        percent:p
+    });
+
+    localStorage.setItem(
+        "bottleTasks",
+        JSON.stringify(tasks)
+    );
+
+    updateUI();
+};
+
+window.deleteTask = (i) => {
+
+    tasks.splice(i,1);
+
+    localStorage.setItem(
+        "bottleTasks",
+        JSON.stringify(tasks)
+    );
+
+    updateUI();
+};
+
+window.doTask = async (i) => {
+
+    let t = tasks[i];
+
+    totalWater += t.percent;
+
+    localStorage.setItem(
+        "bottleTotalWater",
+        totalWater
+    );
+
+    let today =
+    new Date().toLocaleDateString();
+
+    if(!completedDates.includes(today)){
+
+        completedDates.push(today);
+
+        localStorage.setItem(
+            "bottleDates",
+            JSON.stringify(
+                completedDates
+            )
+        );
+    }
+
+    await addDoc(
+        collection(db,"posts"),
+        {
+            userName:t.user,
+            taskName:t.name,
+            percent:t.percent,
+            createdAt:new Date()
+        }
+    );
+
+    updateUI();
+};
+
+window.resetWater = () => {
+
+    totalWater = 0;
+
+    localStorage.setItem(
+        "bottleTotalWater",
+        0
+    );
+
+    updateUI();
+};
+
+function renderCalendar(){
+
+    let calendar =
+    document.getElementById(
+        "calendar"
+    );
+
+    calendar.innerHTML = "";
+
+    let today = new Date();
+
+    let daysInMonth =
+    new Date(
+        today.getFullYear(),
+        today.getMonth()+1,
+        0
+    ).getDate();
+
+    for(let i=1;i<=daysInMonth;i++){
+
+        let d =
+        new Date(
+            today.getFullYear(),
+            today.getMonth(),
+            i
+        ).toLocaleDateString();
+
+        calendar.innerHTML += `
+        <div class="day ${
+            completedDates.includes(d)
+            ? "done"
+            : ""
+        }">
+            ${i}
+        </div>
+        `;
+    }
+}
+
+signInAnonymously(auth)
+.then(()=>{
+
+    onSnapshot(
+        collection(db,"posts"),
+        (snap)=>{
+
+            const container =
+            document.getElementById(
+                "timeline-posts"
+            );
+
+            container.innerHTML = "";
+
+            const posts = [];
+
+            snap.forEach((doc)=>{
+
+                posts.push({
+                    id:doc.id,
+                    ...doc.data()
+                });
+
+            });
+
+            posts.sort(
+                (a,b)=>
+                b.createdAt.seconds -
+                a.createdAt.seconds
+            );
+
+            posts.forEach((d)=>{
+
+                const date =
+                d.createdAt
+                ? new Date(
+                    d.createdAt.seconds
+                    *1000
+                  ).toLocaleString()
+                : "";
+
+                container.innerHTML += `
+                <div class="post-card">
+
+                    <div style="
+                    font-size:11px;
+                    color:#888;">
+                    ⏱️ ${date}
+                    </div>
+
+                    <strong>
+                    ${d.userName}
+                    </strong>
+
+                    さんが
+
+                    🔥${d.taskName}
+
+                    を
+
+                    ${d.percent}%
+
+                    達成！
+
+                </div>
+                `;
+            });
+
+        }
+    );
+
+});
+
+updateUI();
+
+</script>
+
+</body>
+</html>
